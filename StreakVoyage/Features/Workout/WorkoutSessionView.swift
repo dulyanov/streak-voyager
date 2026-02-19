@@ -7,6 +7,7 @@ struct WorkoutSessionView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel: WorkoutSessionViewModel
     @State private var didSendCompletion = false
+    @State private var activeSetRowWidth: CGFloat = 0
 
     init(
         plan: WorkoutPlan,
@@ -22,7 +23,7 @@ struct WorkoutSessionView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.sectionSpacing) {
                     header
-                    setTrack
+                    setTrackSection
 
                     switch viewModel.phase {
                     case .formTip:
@@ -89,6 +90,10 @@ struct WorkoutSessionView: View {
         }
     }
 
+    private var setTrackSection: some View {
+        setTrack
+    }
+
     private var setTrack: some View {
         HStack(spacing: 8) {
             ForEach(Array(plan.repsBySet.enumerated()), id: \.offset) { index, target in
@@ -104,6 +109,49 @@ struct WorkoutSessionView: View {
                 .background(setBackground(for: index))
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var completeSetButton: some View {
+        Button {
+            viewModel.completeSet()
+        } label: {
+            VStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 24, weight: .bold))
+
+                Text("Complete\nSet")
+                    .font(.system(size: 18, weight: .black, design: .rounded))
+                    .multilineTextAlignment(.center)
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(plan.accent.opacity(viewModel.canCompleteSet ? 1 : 0.45))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(!viewModel.canCompleteSet)
+    }
+
+    private var setStatusCard: some View {
+        DashboardCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Set \(viewModel.currentSetNumber) of \(viewModel.totalSets)")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+
+                Text("Target: \(viewModel.currentSetTarget) reps")
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
+
+                Text("\(viewModel.currentRepCount)/\(viewModel.currentSetTarget)")
+                    .font(.system(size: 40, weight: .black, design: .rounded))
+                    .foregroundStyle(plan.accent)
+
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 
@@ -129,21 +177,29 @@ struct WorkoutSessionView: View {
     }
 
     private var activeSetContent: some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.sectionSpacing) {
-            DashboardCard {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Set \(viewModel.currentSetNumber) of \(viewModel.totalSets)")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(AppTheme.Colors.textPrimary)
+        let edgeInset: CGFloat = 2
+        let cardSpacing: CGFloat = edgeInset * 16
+        let cardSide = activeSetCardSide(edgeInset: edgeInset, spacing: cardSpacing)
+        let cardDimension: CGFloat? = cardSide > 0 ? cardSide : nil
 
-                    Text("Target: \(viewModel.currentSetTarget) reps")
-                        .font(.system(size: 17, weight: .semibold, design: .rounded))
-                        .foregroundStyle(AppTheme.Colors.textSecondary)
+        return VStack(alignment: .leading, spacing: AppTheme.Spacing.sectionSpacing) {
+            HStack(alignment: .top, spacing: cardSpacing) {
+                setStatusCard
+                    .frame(width: cardDimension, height: cardDimension, alignment: .topLeading)
 
-                    Text("\(viewModel.currentRepCount)/\(viewModel.currentSetTarget)")
-                        .font(.system(size: 40, weight: .black, design: .rounded))
-                        .foregroundStyle(plan.accent)
+                completeSetButton
+                    .frame(width: cardDimension, height: cardDimension, alignment: .center)
+            }
+            .padding(.horizontal, edgeInset)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                GeometryReader { proxy in
+                    Color.clear
+                        .preference(key: ActiveSetRowWidthPreferenceKey.self, value: proxy.size.width)
                 }
+            }
+            .onPreferenceChange(ActiveSetRowWidthPreferenceKey.self) { width in
+                activeSetRowWidth = width
             }
 
             Button {
@@ -167,6 +223,12 @@ struct WorkoutSessionView: View {
             .buttonStyle(.plain)
             .disabled(!viewModel.canCountRep)
         }
+    }
+
+    private func activeSetCardSide(edgeInset: CGFloat, spacing: CGFloat) -> CGFloat {
+        let fallbackWidth = UIScreen.main.bounds.width - (AppTheme.Spacing.screenPadding * 2)
+        let rowWidth = activeSetRowWidth > 0 ? activeSetRowWidth : fallbackWidth
+        return max((rowWidth - (edgeInset * 2) - spacing) / 2, 0)
     }
 
     private var restContent: some View {
@@ -241,6 +303,14 @@ struct WorkoutSessionView: View {
         }
 
         return AppTheme.Colors.textSecondary
+    }
+}
+
+private struct ActiveSetRowWidthPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 

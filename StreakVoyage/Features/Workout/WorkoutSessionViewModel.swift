@@ -64,6 +64,10 @@ final class WorkoutSessionViewModel: ObservableObject {
         phase == .activeSet
     }
 
+    var canCompleteSet: Bool {
+        phase == .activeSet
+    }
+
     func startWorkout() {
         resetForStart()
         phase = .activeSet
@@ -78,6 +82,12 @@ final class WorkoutSessionViewModel: ObservableObject {
         if currentRepCount == currentSetTarget {
             completeCurrentSet()
         }
+    }
+
+    func completeSet() {
+        guard phase == .activeSet else { return }
+        currentRepCount = currentSetTarget
+        completeCurrentSet()
     }
 
     func skipRest() {

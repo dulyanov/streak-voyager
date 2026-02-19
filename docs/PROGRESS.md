@@ -14,7 +14,7 @@ Last Updated: 2026-02-19
 - [ ] Milestone 8: adaptive set progression and actual rep logging
 
 ## Active Branch
-- `codex/20260219-milestone3-streaks-xp`
+- `codex/20260219-ci-parallel-pr-tests`
 
 ## Handoff
 - Milestones 3 and 4 are implemented on this branch.
@@ -40,3 +40,7 @@ Last Updated: 2026-02-19
 - Initial target features: streaks, XP, daily progress, and reminders.
 - Home dashboard styling uses dynamic light and dark color tokens.
 - CI workflow added at `.github/workflows/ios-ci.yml`.
+- Unit-test CI is sharded by functional test area and runs with parallel-testing workers.
+- CI sharding uses `-skip-testing` filters for reliability on the current Xcode toolchain.
+- CodeQL workflow added at `.github/workflows/codeql.yml` with manual Swift build extraction.
+- Deferred CI optimization for later-stage discussion: switch to `build-for-testing` once and shard via `test-without-building` to reduce duplicate build overhead on GitHub runners.

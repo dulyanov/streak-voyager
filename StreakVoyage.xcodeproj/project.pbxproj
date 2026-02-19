@@ -24,6 +24,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		83535C372F46BE6D00F2C8B7 /* AGENTS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AGENTS.md; sourceTree = "<group>"; };
+		83535C392F46BE9900F2C8B7 /* PROGRESS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = PROGRESS.md; sourceTree = "<group>"; };
 		83D2326E2F46B7D200832462 /* StreakVoyage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StreakVoyage.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		83D2327B2F46B7D300832462 /* StreakVoyageTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = StreakVoyageTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		83D232852F46B7D300832462 /* StreakVoyageUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = StreakVoyageUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -72,9 +74,19 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		83535C3A2F46BE9900F2C8B7 /* docs */ = {
+			isa = PBXGroup;
+			children = (
+				83535C392F46BE9900F2C8B7 /* PROGRESS.md */,
+			);
+			path = docs;
+			sourceTree = "<group>";
+		};
 		83D232652F46B7D200832462 = {
 			isa = PBXGroup;
 			children = (
+				83535C3A2F46BE9900F2C8B7 /* docs */,
+				83535C372F46BE6D00F2C8B7 /* AGENTS.md */,
 				83D232702F46B7D200832462 /* StreakVoyage */,
 				83D2327E2F46B7D300832462 /* StreakVoyageTests */,
 				83D232882F46B7D300832462 /* StreakVoyageUITests */,

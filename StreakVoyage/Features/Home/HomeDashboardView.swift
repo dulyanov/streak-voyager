@@ -1,65 +1,70 @@
 import SwiftUI
 
 struct HomeDashboardView: View {
-    private let stats: [DashboardStat] = [
-        DashboardStat(
-            id: "workouts",
-            symbolName: "trophy.fill",
-            value: "0",
-            title: "Workouts",
-            tint: AppTheme.Colors.levelAccent
-        ),
-        DashboardStat(
-            id: "streak",
-            symbolName: "flame.fill",
-            value: "0",
-            title: "Day Streak",
-            tint: AppTheme.Colors.squatAccent
-        ),
-        DashboardStat(
-            id: "xp",
-            symbolName: "bolt.fill",
-            value: "0",
-            title: "Total XP",
-            tint: AppTheme.Colors.squatAccent
-        )
-    ]
+    private let workouts = WorkoutPlan.mvpPlans
 
-    private let exercises: [ExerciseSummary] = [
-        ExerciseSummary(
-            id: "squats",
-            name: "Squats",
-            subtitle: "Build strong legs and glutes",
-            setsSummary: "3 sets - 32 reps",
-            xpReward: 50,
-            symbolName: "figure.strengthtraining.traditional",
-            iconBackground: AppTheme.Colors.warmIconBackground,
-            accent: AppTheme.Colors.squatAccent
-        ),
-        ExerciseSummary(
-            id: "pushups",
-            name: "Push-ups",
-            subtitle: "Strengthen chest, arms and core",
-            setsSummary: "3 sets - 26 reps",
-            xpReward: 50,
-            symbolName: "figure.push.up",
-            iconBackground: AppTheme.Colors.coolIconBackground,
-            accent: AppTheme.Colors.pushupAccent
-        )
-    ]
+    @State private var totalWorkouts = 0
+    @State private var totalXP = 0
+    @State private var currentStreak = 0
+    @State private var completedWorkoutIDs: Set<String> = []
+    @State private var activeWorkout: WorkoutPlan?
+
+    private var currentLevel: Int {
+        (totalXP / 100) + 1
+    }
+
+    private var levelXPProgress: Int {
+        totalXP % 100
+    }
+
+    private var todayCompletedCount: Int {
+        completedWorkoutIDs.count
+    }
+
+    private var stats: [DashboardStat] {
+        [
+            DashboardStat(
+                id: "workouts",
+                symbolName: "trophy.fill",
+                value: "\(totalWorkouts)",
+                title: "Workouts",
+                tint: AppTheme.Colors.levelAccent
+            ),
+            DashboardStat(
+                id: "streak",
+                symbolName: "flame.fill",
+                value: "\(currentStreak)",
+                title: "Day Streak",
+                tint: AppTheme.Colors.squatAccent
+            ),
+            DashboardStat(
+                id: "xp",
+                symbolName: "bolt.fill",
+                value: "\(totalXP)",
+                title: "Total XP",
+                tint: AppTheme.Colors.squatAccent
+            )
+        ]
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.sectionSpacing) {
                     header
-                    LevelProgressCard(level: 1, currentXP: 0, goalXP: 100)
+                    LevelProgressCard(level: currentLevel, currentXP: levelXPProgress, goalXP: 100)
                     statsRow
                     workoutSectionHeader
                     dailyProgressRow
 
-                    ForEach(exercises) { exercise in
-                        ExerciseCardView(exercise: exercise)
+                    ForEach(workouts) { workout in
+                        ExerciseCardView(
+                            exercise: workout,
+                            isCompletedToday: completedWorkoutIDs.contains(workout.id),
+                            onStart: {
+                                activeWorkout = workout
+                            }
+                        )
                     }
 
                     ReminderCardView(isEnabled: true)
@@ -71,12 +76,17 @@ struct HomeDashboardView: View {
             .background(AppTheme.Colors.screenBackground.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
         }
+        .sheet(item: $activeWorkout) { workout in
+            WorkoutSessionView(plan: workout) { event in
+                handleWorkoutCompletion(event)
+            }
+        }
     }
 
     private var header: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Good evening!")
+                Text(greeting)
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(AppTheme.Colors.textSecondary)
 
@@ -93,7 +103,7 @@ struct HomeDashboardView: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(AppTheme.Colors.squatAccent)
 
-                    Text("0")
+                    Text("\(currentStreak)")
                         .font(.system(size: 12, weight: .heavy, design: .rounded))
                         .foregroundStyle(AppTheme.Colors.squatAccent)
                 }
@@ -118,7 +128,7 @@ struct HomeDashboardView: View {
 
             Spacer()
 
-            Text("0/2")
+            Text("\(todayCompletedCount)/\(workouts.count)")
                 .font(.system(size: 14, weight: .bold, design: .rounded))
                 .foregroundStyle(AppTheme.Colors.textSecondary)
         }
@@ -126,12 +136,36 @@ struct HomeDashboardView: View {
 
     private var dailyProgressRow: some View {
         HStack(spacing: 8) {
-            DailyProgressBar(progress: 0)
-            DailyProgressBar(progress: 0)
+            ForEach(Array(workouts.enumerated()), id: \.offset) { index, _ in
+                DailyProgressBar(progress: todayCompletedCount > index ? 1 : 0)
+            }
         }
+    }
+
+    private var greeting: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        switch hour {
+        case 5..<12:
+            return "Good morning!"
+        case 12..<18:
+            return "Good afternoon!"
+        default:
+            return "Good evening!"
+        }
+    }
+
+    private func handleWorkoutCompletion(_ event: WorkoutCompletionEvent) {
+        let inserted = completedWorkoutIDs.insert(event.workoutID).inserted
+        guard inserted else { return }
+
+        totalWorkouts += 1
+        totalXP += event.xpAwarded
+        currentStreak = max(currentStreak, 1)
     }
 }
 
-#Preview {
-    HomeDashboardView()
+struct HomeDashboardView_Previews: PreviewProvider {
+    static var previews: some View {
+        HomeDashboardView()
+    }
 }

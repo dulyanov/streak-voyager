@@ -3,44 +3,30 @@ import SwiftUI
 struct HomeDashboardView: View {
     private let workouts = WorkoutPlan.mvpPlans
 
-    @State private var totalWorkouts = 0
-    @State private var totalXP = 0
-    @State private var currentStreak = 0
-    @State private var completedWorkoutIDs: Set<String> = []
+    @Environment(\.scenePhase) private var scenePhase
+    @StateObject private var viewModel = HomeDashboardViewModel()
     @State private var activeWorkout: WorkoutPlan?
-
-    private var currentLevel: Int {
-        (totalXP / 100) + 1
-    }
-
-    private var levelXPProgress: Int {
-        totalXP % 100
-    }
-
-    private var todayCompletedCount: Int {
-        completedWorkoutIDs.count
-    }
 
     private var stats: [DashboardStat] {
         [
             DashboardStat(
                 id: "workouts",
                 symbolName: "trophy.fill",
-                value: "\(totalWorkouts)",
+                value: "\(viewModel.totalWorkouts)",
                 title: "Workouts",
                 tint: AppTheme.Colors.levelAccent
             ),
             DashboardStat(
                 id: "streak",
                 symbolName: "flame.fill",
-                value: "\(currentStreak)",
+                value: "\(viewModel.currentStreak)",
                 title: "Day Streak",
                 tint: AppTheme.Colors.squatAccent
             ),
             DashboardStat(
                 id: "xp",
                 symbolName: "bolt.fill",
-                value: "\(totalXP)",
+                value: "\(viewModel.totalXP)",
                 title: "Total XP",
                 tint: AppTheme.Colors.squatAccent
             )
@@ -52,7 +38,7 @@ struct HomeDashboardView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.sectionSpacing) {
                     header
-                    LevelProgressCard(level: currentLevel, currentXP: levelXPProgress, goalXP: 100)
+                    LevelProgressCard(level: viewModel.currentLevel, currentXP: viewModel.levelXPProgress, goalXP: 100)
                     statsRow
                     workoutSectionHeader
                     dailyProgressRow
@@ -60,7 +46,7 @@ struct HomeDashboardView: View {
                     ForEach(workouts) { workout in
                         ExerciseCardView(
                             exercise: workout,
-                            isCompletedToday: completedWorkoutIDs.contains(workout.id),
+                            isCompletedToday: viewModel.isWorkoutCompletedToday(workout.id),
                             onStart: {
                                 activeWorkout = workout
                             }
@@ -78,8 +64,15 @@ struct HomeDashboardView: View {
         }
         .sheet(item: $activeWorkout) { workout in
             WorkoutSessionView(plan: workout) { event in
-                handleWorkoutCompletion(event)
+                viewModel.handleWorkoutCompletion(event)
             }
+        }
+        .onAppear {
+            viewModel.refreshForCurrentDate()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            viewModel.refreshForCurrentDate()
         }
     }
 
@@ -103,7 +96,7 @@ struct HomeDashboardView: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(AppTheme.Colors.squatAccent)
 
-                    Text("\(currentStreak)")
+                    Text("\(viewModel.currentStreak)")
                         .font(.system(size: 12, weight: .heavy, design: .rounded))
                         .foregroundStyle(AppTheme.Colors.squatAccent)
                 }
@@ -128,7 +121,7 @@ struct HomeDashboardView: View {
 
             Spacer()
 
-            Text("\(todayCompletedCount)/\(workouts.count)")
+            Text("\(viewModel.todayCompletedCount)/\(workouts.count)")
                 .font(.system(size: 14, weight: .bold, design: .rounded))
                 .foregroundStyle(AppTheme.Colors.textSecondary)
         }
@@ -137,7 +130,7 @@ struct HomeDashboardView: View {
     private var dailyProgressRow: some View {
         HStack(spacing: 8) {
             ForEach(Array(workouts.enumerated()), id: \.offset) { index, _ in
-                DailyProgressBar(progress: todayCompletedCount > index ? 1 : 0)
+                DailyProgressBar(progress: viewModel.todayCompletedCount > index ? 1 : 0)
             }
         }
     }
@@ -152,15 +145,6 @@ struct HomeDashboardView: View {
         default:
             return "Good evening!"
         }
-    }
-
-    private func handleWorkoutCompletion(_ event: WorkoutCompletionEvent) {
-        let inserted = completedWorkoutIDs.insert(event.workoutID).inserted
-        guard inserted else { return }
-
-        totalWorkouts += 1
-        totalXP += event.xpAwarded
-        currentStreak = max(currentStreak, 1)
     }
 }
 

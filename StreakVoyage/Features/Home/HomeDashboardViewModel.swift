@@ -15,11 +15,11 @@ final class HomeDashboardViewModel: ObservableObject {
     private var snapshot = DashboardProgressSnapshot()
 
     init(
-        store: DashboardProgressStoring = UserDefaultsDashboardProgressStore(),
+        store: DashboardProgressStoring? = nil,
         calendar: Calendar = .current,
         nowProvider: @escaping () -> Date = Date.init
     ) {
-        self.store = store
+        self.store = store ?? UserDefaultsDashboardProgressStore()
         self.calendar = calendar
         self.nowProvider = nowProvider
         load()

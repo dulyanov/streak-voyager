@@ -52,4 +52,32 @@ struct WorkoutSessionViewModelTests {
         #expect(viewModel.currentSetIndex == 1)
         #expect(viewModel.currentRepCount == 0)
     }
+
+    @Test
+    func completeSetActionSkipsRepTappingAndFinishesWorkout() {
+        let viewModel = WorkoutSessionViewModel(
+            plan: .pushups,
+            restDurationSeconds: 1,
+            usesAutomaticRestTimer: false
+        )
+
+        viewModel.startWorkout()
+        #expect(viewModel.canCompleteSet)
+
+        viewModel.completeSet()
+        #expect(viewModel.phase == .rest)
+        #expect(viewModel.currentRepCount == 8)
+
+        viewModel.skipRest()
+        viewModel.completeSet()
+        #expect(viewModel.phase == .rest)
+        #expect(viewModel.currentRepCount == 10)
+
+        viewModel.skipRest()
+        viewModel.completeSet()
+
+        #expect(viewModel.phase == .completed)
+        #expect(viewModel.completionEvent?.workoutID == "pushups")
+        #expect(viewModel.completionEvent?.xpAwarded == 50)
+    }
 }

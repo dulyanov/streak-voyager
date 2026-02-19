@@ -9,14 +9,26 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ios-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build-and-test:
+    name: Unit Tests (${{ matrix.shard.name }})
     runs-on: macos-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - name: Core Workout and Store
+            test_group: core_tests
+          - name: Home Progress Rules
+            test_group: home_tests
 
     steps:
       - name: Checkout
@@ -25,13 +37,70 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
-      - name: Select available iPhone simulator
+      - name: Select latest available iPhone simulator
         id: simulator
         shell: bash
         run: |
           set -euo pipefail
 
-          DEVICE_NAME=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {gsub(/^ +| +$/, "", $1); print $1; exit}')
+          DEVICE_NAME=$(
+            xcrun simctl list devices available | awk -F '[()]' '
+              function trim(value) {
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+                return value
+              }
+
+              BEGIN {
+                bestRuntimeMajor = -1
+                bestRuntimeMinor = -1
+                bestModel = -1
+                bestName = ""
+                runtimeMajor = -1
+                runtimeMinor = -1
+              }
+
+              /^-- iOS / {
+                version = $0
+                sub(/^-- iOS[[:space:]]+/, "", version)
+                sub(/[[:space:]]+--$/, "", version)
+                split(version, parts, ".")
+                runtimeMajor = parts[1] + 0
+                runtimeMinor = (parts[2] == "" ? 0 : parts[2] + 0)
+                next
+              }
+
+              /^-- / { next }
+              /\(unavailable/ { next }
+
+              /iPhone/ {
+                name = trim($1)
+                model = -1
+
+                if (name ~ /^iPhone[[:space:]]+[0-9]/) {
+                  numericPart = name
+                  sub(/^iPhone[[:space:]]+/, "", numericPart)
+                  split(numericPart, tokens, /[^0-9]/)
+                  model = tokens[1] + 0
+                }
+
+                if (runtimeMajor > bestRuntimeMajor || (runtimeMajor == bestRuntimeMajor && runtimeMinor > bestRuntimeMinor) || (runtimeMajor == bestRuntimeMajor && runtimeMinor == bestRuntimeMinor && model > bestModel)) {
+                  bestRuntimeMajor = runtimeMajor
+                  bestRuntimeMinor = runtimeMinor
+                  bestModel = model
+                  bestName = name
+                }
+              }
+
+              END {
+                print bestName
+              }
+            '
+          )
+
+          if [[ -z "${DEVICE_NAME}" ]]; then
+            DEVICE_NAME=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {gsub(/^ +| +$/, "", $1); print $1; exit}')
+          fi
+
           if [[ -z "${DEVICE_NAME}" ]]; then
             echo "No available iPhone simulator found."
             exit 1
@@ -45,9 +114,24 @@ jobs:
         run: |
           set -euo pipefail
 
-          xcodebuild test \
-            -project StreakVoyage.xcodeproj \
-            -scheme StreakVoyage \
-            -destination "platform=iOS Simulator,name=${{ steps.simulator.outputs.name }}" \
-            -skip-testing:StreakVoyageUITests \
-            CODE_SIGNING_ALLOWED=NO
+          xcodebuild_args=(
+            -project StreakVoyage.xcodeproj
+            -scheme StreakVoyage
+            -destination "platform=iOS Simulator,name=${{ steps.simulator.outputs.name }}"
+            -skip-testing:StreakVoyageUITests
+            -parallel-testing-enabled YES
+            -maximum-parallel-testing-workers 4
+          )
+
+          if [[ "${{ matrix.shard.test_group }}" == "core_tests" ]]; then
+            xcodebuild_args+=(-skip-testing:StreakVoyageTests/HomeDashboardViewModelTests)
+          else
+            # Keep these exclusions in sync when new non-home suites are added.
+            xcodebuild_args+=(
+              -skip-testing:StreakVoyageTests/WorkoutSessionViewModelTests
+              -skip-testing:StreakVoyageTests/HomeProgressStoreTests
+              -skip-testing:StreakVoyageTests/StreakVoyageTests
+            )
+          fi
+
+          xcodebuild test "${xcodebuild_args[@]}" CODE_SIGNING_ALLOWED=NO

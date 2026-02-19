@@ -21,20 +21,22 @@ final class UserDefaultsDashboardProgressStore: DashboardProgressStoring {
     }
 
     private let defaults: UserDefaults
+    private let snapshotKey: String
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, snapshotKey: String = Keys.snapshot) {
         self.defaults = defaults
+        self.snapshotKey = snapshotKey
     }
 
     func load() -> DashboardProgressSnapshot? {
-        guard let data = defaults.data(forKey: Keys.snapshot) else { return nil }
+        guard let data = defaults.data(forKey: snapshotKey) else { return nil }
         return try? decoder.decode(DashboardProgressSnapshot.self, from: data)
     }
 
     func save(_ snapshot: DashboardProgressSnapshot) {
         guard let data = try? encoder.encode(snapshot) else { return }
-        defaults.set(data, forKey: Keys.snapshot)
+        defaults.set(data, forKey: snapshotKey)
     }
 }

@@ -75,7 +75,9 @@ struct StatTileView: View {
 }
 
 struct ExerciseCardView: View {
-    let exercise: ExerciseSummary
+    let exercise: WorkoutPlan
+    let isCompletedToday: Bool
+    let onStart: () -> Void
 
     var body: some View {
         DashboardCard {
@@ -84,9 +86,8 @@ struct ExerciseCardView: View {
                     .fill(exercise.iconBackground)
                     .frame(width: 64, height: 64)
                     .overlay {
-                        Image(systemName: exercise.symbolName)
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundStyle(exercise.accent)
+                        Text(exercise.iconEmoji)
+                            .font(.system(size: 30))
                     }
 
                 VStack(alignment: .leading, spacing: 5) {
@@ -110,11 +111,22 @@ struct ExerciseCardView: View {
                             foreground: AppTheme.Colors.textPrimary,
                             background: AppTheme.Colors.warmTagBackground
                         )
+
+                        if isCompletedToday {
+                            WorkoutTag(
+                                text: "DONE",
+                                foreground: .white,
+                                background: AppTheme.Colors.levelAccent
+                            )
+                        }
                     }
                 }
 
                 Spacer(minLength: 10)
-                WorkoutActionButton(accent: exercise.accent)
+                WorkoutActionButton(
+                    accent: exercise.accent,
+                    action: onStart
+                )
             }
         }
     }
@@ -138,9 +150,10 @@ struct WorkoutTag: View {
 
 struct WorkoutActionButton: View {
     let accent: Color
+    let action: () -> Void
 
     var body: some View {
-        Button(action: {}) {
+        Button(action: action) {
             Image(systemName: "play.fill")
                 .font(.system(size: 20, weight: .bold))
                 .foregroundStyle(.white)
@@ -149,6 +162,7 @@ struct WorkoutActionButton: View {
                 .clipShape(Circle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Start workout")
     }
 }
 

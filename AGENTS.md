@@ -16,12 +16,13 @@
 - Perform all code edits, command execution, git operations, and commits in Codex (across all current and future sessions).
 
 ## Current Focus
-- Milestone 3: implement streak and XP persistence logic on top of the completed workout flow.
+- Milestone 5: implement daily reminders on top of persisted workout dashboard progress.
 
 ## Roadmap Constraint
 - Defer adaptive set progression and flexible rep logging (fewer/more than target) until after testing and CI milestones are in place.
 
 ## Session Handoff
-- Last completed milestone: Milestone 2 (workout flow) and Milestone 7 (GitHub CI workflow).
+- Last completed milestones: Milestone 3 (streak/XP logic), Milestone 4 (persistence), and Milestone 7 (GitHub CI workflow).
+- Workout UX includes both tap-to-count reps and a quick `Complete Set` button for set-based logging.
 - Start next work from a new branch following convention, for example:
-  - `codex/20260219-milestone3-streaks-xp`
+  - `codex/20260219-milestone5-daily-reminders`

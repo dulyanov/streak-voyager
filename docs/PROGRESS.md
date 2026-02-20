@@ -1,6 +1,6 @@
 # StreakVoyager MVP Progress
 
-Last Updated: 2026-02-19
+Last Updated: 2026-02-20
 
 ## Milestone Status
 - [x] Project bootstrap and repository setup
@@ -8,16 +8,16 @@ Last Updated: 2026-02-19
 - [x] Milestone 2: workout flow (sets, reps, rest timer)
 - [x] Milestone 3: streak and XP logic
 - [x] Milestone 4: persistence
-- [ ] Milestone 5: daily reminders
+- [x] Milestone 5: daily reminders
 - [ ] Milestone 6: tests and polish
 - [x] Milestone 7: GitHub CI for build and tests on PRs
 - [ ] Milestone 8: adaptive set progression and actual rep logging
 
 ## Active Branch
-- `codex/20260219-ci-parallel-pr-tests`
+- `codex/20260219-milestone5-daily-reminders`
 
 ## Handoff
-- Milestones 3 and 4 are implemented on this branch.
+- Milestones 3, 4, and 5 are implemented on this branch.
 - Workout flow now supports two completion paths during active sets:
   - large tap-to-count rep area
   - quick `Complete Set` button beside the set track
@@ -25,12 +25,13 @@ Last Updated: 2026-02-19
   - total workouts, total XP, current/longest streak
   - per-day completed workout IDs
   - day rollover reset and missed-day streak reset rules
-- Recommended next branch for Xcode session:
-  - `codex/20260219-milestone5-daily-reminders`
-- Milestone 5 implementation target:
-  - Notification permission prompt flow
-  - Configurable daily reminder time (simple MVP default is acceptable)
-  - Local notification scheduling/cancel behavior
+- Milestone 5 reminders are implemented:
+  - Notification permission prompt flow (not determined, denied, authorized handling)
+  - Configurable daily reminder time persisted in UserDefaults
+  - Local notification schedule/cancel with a stable request ID
+  - Reminder status refresh and resync when app returns to foreground
+- Recommended next branch for Xcode session after this branch merges:
+  - `codex/20260219-milestone6-tests-and-polish`
 - Milestone 8 is intentionally deferred until after Milestones 6 and 7:
   - Allow logging fewer or more reps per set
   - Add progression rules to adjust future set targets
@@ -40,7 +41,7 @@ Last Updated: 2026-02-19
 - Initial target features: streaks, XP, daily progress, and reminders.
 - Home dashboard styling uses dynamic light and dark color tokens.
 - CI workflow added at `.github/workflows/ios-ci.yml`.
-- Unit-test CI is sharded by functional test area and runs with parallel-testing workers.
-- CI sharding uses `-skip-testing` filters for reliability on the current Xcode toolchain.
+- Unit-test CI builds once with `build-for-testing` and executes shard-specific `test-without-building` runs.
+- CI sharding now uses explicit `-only-testing` filters and a pinned simulator destination (`iPhone 17 Pro`, `OS=latest`).
 - CodeQL workflow added at `.github/workflows/codeql.yml` with manual Swift build extraction.
-- Deferred CI optimization for later-stage discussion: switch to `build-for-testing` once and shard via `test-without-building` to reduce duplicate build overhead on GitHub runners.
+- CodeQL PR runs are path-filtered to code and workflow changes, and Swift extraction uses `ONLY_ACTIVE_ARCH=YES`.

@@ -14,10 +14,14 @@ Last Updated: 2026-02-20
 - [ ] Milestone 8: adaptive set progression and actual rep logging
 
 ## Active Branch
-- `codex/20260219-milestone5-daily-reminders`
+- `codex/20260220-milestone6-tests-and-polish`
 
 ## Handoff
-- Milestones 3, 4, and 5 are implemented on this branch.
+- Milestones 3, 4, and 5 are implemented.
+- Milestone 6 is in progress on this branch:
+  - expanded unit-test coverage for workout and reminder edge cases
+  - deterministic UI smoke tests with app reset launch argument
+  - accessibility identifiers added for stable UI automation targets
 - Workout flow now supports two completion paths during active sets:
   - large tap-to-count rep area
   - quick `Complete Set` button beside the set track
@@ -30,8 +34,6 @@ Last Updated: 2026-02-20
   - Configurable daily reminder time persisted in UserDefaults
   - Local notification schedule/cancel with a stable request ID
   - Reminder status refresh and resync when app returns to foreground
-- Recommended next branch for Xcode session after this branch merges:
-  - `codex/20260219-milestone6-tests-and-polish`
 - Milestone 8 is intentionally deferred until after Milestones 6 and 7:
   - Allow logging fewer or more reps per set
   - Add progression rules to adjust future set targets

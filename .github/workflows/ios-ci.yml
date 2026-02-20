@@ -11,13 +11,17 @@ on:
 
 permissions:
   contents: read
+  checks: write
 
 concurrency:
   group: ios-ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  IOS_SIMULATOR_DESTINATION: platform=iOS Simulator,name=iPhone 17 Pro,OS=latest,arch=arm64
+
 jobs:
-  build-and-test:
+  test-shards:
     name: Unit Tests (${{ matrix.shard.name }})
     runs-on: macos-latest
     timeout-minutes: 30
@@ -34,104 +38,129 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Show Xcode version
-        run: xcodebuild -version
-
-      - name: Select latest available iPhone simulator
-        id: simulator
+      - name: Run shard with xcodebuild test
         shell: bash
         run: |
           set -euo pipefail
 
-          DEVICE_NAME=$(
-            xcrun simctl list devices available | awk -F '[()]' '
-              function trim(value) {
-                gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
-                return value
-              }
+          UNIT_TEST_RESULT_BUNDLE_PATH="${RUNNER_TEMP}/TestResults-${{ matrix.shard.test_group }}.xcresult"
+          echo "UNIT_TEST_RESULT_BUNDLE_PATH=${UNIT_TEST_RESULT_BUNDLE_PATH}" >> "${GITHUB_ENV}"
 
-              BEGIN {
-                bestRuntimeMajor = -1
-                bestRuntimeMinor = -1
-                bestModel = -1
-                bestName = ""
-                runtimeMajor = -1
-                runtimeMinor = -1
-              }
-
-              /^-- iOS / {
-                version = $0
-                sub(/^-- iOS[[:space:]]+/, "", version)
-                sub(/[[:space:]]+--$/, "", version)
-                split(version, parts, ".")
-                runtimeMajor = parts[1] + 0
-                runtimeMinor = (parts[2] == "" ? 0 : parts[2] + 0)
-                next
-              }
-
-              /^-- / { next }
-              /\(unavailable/ { next }
-
-              /iPhone/ {
-                name = trim($1)
-                model = -1
-
-                if (name ~ /^iPhone[[:space:]]+[0-9]/) {
-                  numericPart = name
-                  sub(/^iPhone[[:space:]]+/, "", numericPart)
-                  split(numericPart, tokens, /[^0-9]/)
-                  model = tokens[1] + 0
-                }
-
-                if (runtimeMajor > bestRuntimeMajor || (runtimeMajor == bestRuntimeMajor && runtimeMinor > bestRuntimeMinor) || (runtimeMajor == bestRuntimeMajor && runtimeMinor == bestRuntimeMinor && model > bestModel)) {
-                  bestRuntimeMajor = runtimeMajor
-                  bestRuntimeMinor = runtimeMinor
-                  bestModel = model
-                  bestName = name
-                }
-              }
-
-              END {
-                print bestName
-              }
-            '
-          )
-
-          if [[ -z "${DEVICE_NAME}" ]]; then
-            DEVICE_NAME=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {gsub(/^ +| +$/, "", $1); print $1; exit}')
-          fi
-
-          if [[ -z "${DEVICE_NAME}" ]]; then
-            echo "No available iPhone simulator found."
-            exit 1
-          fi
-
-          echo "Using simulator: ${DEVICE_NAME}"
-          echo "name=${DEVICE_NAME}" >> "${GITHUB_OUTPUT}"
-
-      - name: Build and run tests
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          xcodebuild_args=(
-            -project StreakVoyage.xcodeproj
-            -scheme StreakVoyage
-            -destination "platform=iOS Simulator,name=${{ steps.simulator.outputs.name }}"
-            -skip-testing:StreakVoyageUITests
-            -parallel-testing-enabled YES
-            -maximum-parallel-testing-workers 4
-          )
-
+          test_filters=()
           if [[ "${{ matrix.shard.test_group }}" == "core_tests" ]]; then
-            xcodebuild_args+=(-skip-testing:StreakVoyageTests/HomeDashboardViewModelTests)
-          else
-            # Keep these exclusions in sync when new non-home suites are added.
-            xcodebuild_args+=(
-              -skip-testing:StreakVoyageTests/WorkoutSessionViewModelTests
-              -skip-testing:StreakVoyageTests/HomeProgressStoreTests
-              -skip-testing:StreakVoyageTests/StreakVoyageTests
+            test_filters+=(
+              -only-testing:StreakVoyageTests/WorkoutSessionViewModelTests
+              -only-testing:StreakVoyageTests/HomeProgressStoreTests
+              -only-testing:StreakVoyageTests/StreakVoyageTests
             )
+          else
+            test_filters+=(-only-testing:StreakVoyageTests/HomeDashboardViewModelTests)
           fi
 
-          xcodebuild test "${xcodebuild_args[@]}" CODE_SIGNING_ALLOWED=NO
+          rm -rf "${UNIT_TEST_RESULT_BUNDLE_PATH}"
+
+          # For our current suite sizes, xcodebuild's internal parallel test workers
+          # add startup overhead that is larger than the gain from concurrency.
+          xcodebuild test \
+            -project StreakVoyage.xcodeproj \
+            -scheme StreakVoyage \
+            -destination "${IOS_SIMULATOR_DESTINATION}" \
+            -parallel-testing-enabled NO \
+            -enableCodeCoverage YES \
+            -skip-testing:StreakVoyageUITests \
+            -resultBundlePath "${UNIT_TEST_RESULT_BUNDLE_PATH}" \
+            "${test_filters[@]}" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Detect unit test result bundle
+        if: always()
+        id: detect-unit-result
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -d "${UNIT_TEST_RESULT_BUNDLE_PATH}" ]]; then
+            echo "found=true" >> "${GITHUB_OUTPUT}"
+            echo "path=${UNIT_TEST_RESULT_BUNDLE_PATH}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "found=false" >> "${GITHUB_OUTPUT}"
+            echo "No unit test result bundle found at ${UNIT_TEST_RESULT_BUNDLE_PATH}"
+          fi
+
+      - name: Publish unit test summary
+        if: always() && steps.detect-unit-result.outputs.found == 'true'
+        uses: kishikawakatsumi/xcresulttool@v1
+        with:
+          path: ${{ steps.detect-unit-result.outputs.path }}
+          title: Unit Tests (${{ matrix.shard.name }})
+          show-passed-tests: false
+          upload-bundles: failure
+
+      - name: Upload unit coverage to Codecov
+        if: always() && steps.detect-unit-result.outputs.found == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && (env.CODECOV_TOKEN != '' || github.event.repository.private == false)
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        uses: codecov/codecov-action@v5
+        with:
+          directory: ${{ runner.temp }}
+          plugins: xcode
+          swift_project: StreakVoyage
+          flags: ios-unit,${{ matrix.shard.test_group }}
+          name: ios-unit-${{ matrix.shard.test_group }}
+          token: ${{ env.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+          verbose: true
+
+  ui-tests-main:
+    name: UI Tests (main only)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run UI tests
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          UI_TEST_RESULT_BUNDLE_PATH="${RUNNER_TEMP}/TestResults-ui-tests-main.xcresult"
+          echo "UI_TEST_RESULT_BUNDLE_PATH=${UI_TEST_RESULT_BUNDLE_PATH}" >> "${GITHUB_ENV}"
+
+          rm -rf "${UI_TEST_RESULT_BUNDLE_PATH}"
+
+          xcodebuild test \
+            -project StreakVoyage.xcodeproj \
+            -scheme StreakVoyage \
+            -destination "${IOS_SIMULATOR_DESTINATION}" \
+            -only-testing:StreakVoyageUITests \
+            -skip-testing:StreakVoyageTests \
+            -parallel-testing-enabled NO \
+            -resultBundlePath "${UI_TEST_RESULT_BUNDLE_PATH}" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Detect UI test result bundle
+        if: always()
+        id: detect-ui-result
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -d "${UI_TEST_RESULT_BUNDLE_PATH}" ]]; then
+            echo "found=true" >> "${GITHUB_OUTPUT}"
+            echo "path=${UI_TEST_RESULT_BUNDLE_PATH}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "found=false" >> "${GITHUB_OUTPUT}"
+            echo "No UI test result bundle found at ${UI_TEST_RESULT_BUNDLE_PATH}"
+          fi
+
+      - name: Publish UI test summary
+        if: always() && steps.detect-ui-result.outputs.found == 'true'
+        uses: kishikawakatsumi/xcresulttool@v1
+        with:
+          path: ${{ steps.detect-ui-result.outputs.path }}
+          title: UI Tests (main only)
+          show-passed-tests: false
+          upload-bundles: failure

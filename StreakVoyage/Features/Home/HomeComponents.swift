@@ -62,12 +62,14 @@ struct StatTileView: View {
                 Text(stat.value)
                     .font(.system(size: 30, weight: .black, design: .rounded))
                     .foregroundStyle(AppTheme.Colors.textPrimary)
+                    .accessibilityIdentifier("home.stat.\(stat.id).value")
 
                 Text(stat.title)
                     .font(.system(size: 17, weight: .semibold, design: .rounded))
                     .foregroundStyle(AppTheme.Colors.textSecondary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
+                    .accessibilityIdentifier("home.stat.\(stat.id).title")
             }
             .frame(maxWidth: .infinity, minHeight: 92)
         }
@@ -118,6 +120,7 @@ struct ExerciseCardView: View {
                                 foreground: .white,
                                 background: AppTheme.Colors.levelAccent
                             )
+                            .accessibilityIdentifier("home.workout.done.\(exercise.id)")
                         }
                     }
                 }
@@ -125,6 +128,7 @@ struct ExerciseCardView: View {
                 Spacer(minLength: 10)
                 WorkoutActionButton(
                     accent: exercise.accent,
+                    accessibilityIdentifier: "home.workout.start.\(exercise.id)",
                     action: onStart
                 )
             }
@@ -150,6 +154,7 @@ struct WorkoutTag: View {
 
 struct WorkoutActionButton: View {
     let accent: Color
+    let accessibilityIdentifier: String
     let action: () -> Void
 
     var body: some View {
@@ -163,6 +168,7 @@ struct WorkoutActionButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Start workout")
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 }
 
@@ -212,6 +218,7 @@ struct ReminderCardView: View {
                         Text(subtitle)
                             .font(.system(size: 17, weight: .semibold, design: .rounded))
                             .foregroundStyle(AppTheme.Colors.textSecondary)
+                            .accessibilityIdentifier("home.reminder.subtitle")
                     }
 
                     Spacer()
@@ -225,12 +232,14 @@ struct ReminderCardView: View {
                     )
                     .labelsHidden()
                     .tint(AppTheme.Colors.squatAccent)
+                    .accessibilityIdentifier("home.reminder.toggle")
                 }
 
                 if permissionStatus == .denied {
                     Text("Enable notifications in Settings to turn reminders on.")
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(AppTheme.Colors.textSecondary)
+                        .accessibilityIdentifier("home.reminder.deniedMessage")
                 } else {
                     HStack {
                         Text("Time")
@@ -249,6 +258,7 @@ struct ReminderCardView: View {
                         )
                         .labelsHidden()
                         .datePickerStyle(.compact)
+                        .accessibilityIdentifier("home.reminder.timePicker")
                     }
                 }
             }

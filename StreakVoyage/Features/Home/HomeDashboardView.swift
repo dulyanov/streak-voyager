@@ -106,6 +106,7 @@ struct HomeDashboardView: View {
                 Text("StreakVoyage")
                     .font(.system(size: 22, weight: .black, design: .rounded))
                     .foregroundStyle(AppTheme.Colors.textPrimary)
+                    .accessibilityIdentifier("home.title")
             }
 
             Spacer()
@@ -119,6 +120,7 @@ struct HomeDashboardView: View {
                     Text("\(viewModel.currentStreak)")
                         .font(.system(size: 12, weight: .heavy, design: .rounded))
                         .foregroundStyle(AppTheme.Colors.squatAccent)
+                        .accessibilityIdentifier("home.header.streak.value")
                 }
                 .padding(.horizontal, 8)
             }
@@ -144,6 +146,7 @@ struct HomeDashboardView: View {
             Text("\(viewModel.todayCompletedCount)/\(workouts.count)")
                 .font(.system(size: 14, weight: .bold, design: .rounded))
                 .foregroundStyle(AppTheme.Colors.textSecondary)
+                .accessibilityIdentifier("home.daily.progress.count")
         }
     }
 
@@ -151,6 +154,7 @@ struct HomeDashboardView: View {
         HStack(spacing: 8) {
             ForEach(Array(workouts.enumerated()), id: \.offset) { index, _ in
                 DailyProgressBar(progress: viewModel.todayCompletedCount > index ? 1 : 0)
+                    .accessibilityIdentifier("home.daily.progress.segment.\(index)")
             }
         }
     }

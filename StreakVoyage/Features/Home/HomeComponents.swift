@@ -186,35 +186,83 @@ struct DailyProgressBar: View {
 
 struct ReminderCardView: View {
     let isEnabled: Bool
+    let reminderTime: Date
+    let permissionStatus: ReminderPermissionStatus
+    let onToggle: (Bool) -> Void
+    let onTimeChange: (Date) -> Void
 
     var body: some View {
         DashboardCard {
-            HStack(spacing: AppTheme.Spacing.rowSpacing) {
-                RoundedRectangle(cornerRadius: AppTheme.Radius.icon, style: .continuous)
-                    .fill(AppTheme.Colors.warmIconBackground)
-                    .frame(width: 52, height: 52)
-                    .overlay {
-                        Image(systemName: "bell")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(AppTheme.Colors.squatAccent)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: AppTheme.Spacing.rowSpacing) {
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.icon, style: .continuous)
+                        .fill(AppTheme.Colors.warmIconBackground)
+                        .frame(width: 52, height: 52)
+                        .overlay {
+                            Image(systemName: "bell")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundStyle(AppTheme.Colors.squatAccent)
+                        }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Daily reminders")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
+
+                        Text(subtitle)
+                            .font(.system(size: 17, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AppTheme.Colors.textSecondary)
                     }
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Enable daily reminders")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(AppTheme.Colors.textPrimary)
+                    Spacer()
 
-                    Text("Protect your streak every day")
-                        .font(.system(size: 17, weight: .semibold, design: .rounded))
-                        .foregroundStyle(AppTheme.Colors.textSecondary)
+                    Toggle(
+                        "",
+                        isOn: Binding(
+                            get: { isEnabled },
+                            set: onToggle
+                        )
+                    )
+                    .labelsHidden()
+                    .tint(AppTheme.Colors.squatAccent)
                 }
 
-                Spacer()
+                if permissionStatus == .denied {
+                    Text("Enable notifications in Settings to turn reminders on.")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
+                } else {
+                    HStack {
+                        Text("Time")
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AppTheme.Colors.textSecondary)
 
-                Text(isEnabled ? "ON" : "OFF")
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .foregroundStyle(isEnabled ? AppTheme.Colors.squatAccent : AppTheme.Colors.textSecondary)
+                        Spacer()
+
+                        DatePicker(
+                            "",
+                            selection: Binding(
+                                get: { reminderTime },
+                                set: onTimeChange
+                            ),
+                            displayedComponents: .hourAndMinute
+                        )
+                        .labelsHidden()
+                        .datePickerStyle(.compact)
+                    }
+                }
             }
+        }
+    }
+
+    private var subtitle: String {
+        switch permissionStatus {
+        case .denied:
+            return "Notifications are currently blocked"
+        case .notDetermined:
+            return "Protect your streak every day"
+        case .authorized:
+            return isEnabled ? "Reminder is active" : "Protect your streak every day"
         }
     }
 }

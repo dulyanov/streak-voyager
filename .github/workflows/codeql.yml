@@ -7,6 +7,13 @@ on:
   pull_request:
     branches:
       - main
+    paths:
+      - ".github/workflows/codeql.yml"
+      - ".github/workflows/ios-ci.yml"
+      - "StreakVoyage/**"
+      - "StreakVoyageTests/**"
+      - "StreakVoyageUITests/**"
+      - "StreakVoyage.xcodeproj/**"
   schedule:
     - cron: "26 3 * * 1"
   workflow_dispatch:
@@ -59,7 +66,8 @@ jobs:
             -scheme StreakVoyage \
             -destination "generic/platform=iOS Simulator" \
             -derivedDataPath "${RUNNER_TEMP}/DerivedData" \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=YES
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4

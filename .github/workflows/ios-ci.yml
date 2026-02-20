@@ -16,9 +16,54 @@ concurrency:
   group: ios-ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  IOS_SIMULATOR_DESTINATION: platform=iOS Simulator,name=iPhone 17 Pro,OS=latest
+
 jobs:
-  build-and-test:
+  build-for-testing:
+    name: Build for Testing
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build unit-test products once
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          derived_data_path="${RUNNER_TEMP}/DerivedData"
+
+          xcodebuild build-for-testing \
+            -project StreakVoyage.xcodeproj \
+            -scheme StreakVoyage \
+            -destination "${IOS_SIMULATOR_DESTINATION}" \
+            -derivedDataPath "${derived_data_path}" \
+            -skip-testing:StreakVoyageUITests \
+            -only-testing:StreakVoyageTests/WorkoutSessionViewModelTests \
+            -only-testing:StreakVoyageTests/HomeProgressStoreTests \
+            -only-testing:StreakVoyageTests/StreakVoyageTests \
+            -only-testing:StreakVoyageTests/HomeDashboardViewModelTests \
+            -parallel-testing-enabled YES \
+            -maximum-parallel-testing-workers 4 \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload build-for-testing products
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-for-testing-products
+          path: ${{ runner.temp }}/DerivedData/Build/Products
+          if-no-files-found: error
+          retention-days: 1
+
+  test-shards:
     name: Unit Tests (${{ matrix.shard.name }})
+    needs: build-for-testing
     runs-on: macos-latest
     timeout-minutes: 30
     strategy:
@@ -31,107 +76,38 @@ jobs:
             test_group: home_tests
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Download build-for-testing products
+        uses: actions/download-artifact@v4
+        with:
+          name: build-for-testing-products
+          path: ${{ runner.temp }}/DerivedData/Build/Products
 
-      - name: Show Xcode version
-        run: xcodebuild -version
-
-      - name: Select latest available iPhone simulator
-        id: simulator
+      - name: Run shard with test-without-building
         shell: bash
         run: |
           set -euo pipefail
 
-          DEVICE_NAME=$(
-            xcrun simctl list devices available | awk -F '[()]' '
-              function trim(value) {
-                gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
-                return value
-              }
-
-              BEGIN {
-                bestRuntimeMajor = -1
-                bestRuntimeMinor = -1
-                bestModel = -1
-                bestName = ""
-                runtimeMajor = -1
-                runtimeMinor = -1
-              }
-
-              /^-- iOS / {
-                version = $0
-                sub(/^-- iOS[[:space:]]+/, "", version)
-                sub(/[[:space:]]+--$/, "", version)
-                split(version, parts, ".")
-                runtimeMajor = parts[1] + 0
-                runtimeMinor = (parts[2] == "" ? 0 : parts[2] + 0)
-                next
-              }
-
-              /^-- / { next }
-              /\(unavailable/ { next }
-
-              /iPhone/ {
-                name = trim($1)
-                model = -1
-
-                if (name ~ /^iPhone[[:space:]]+[0-9]/) {
-                  numericPart = name
-                  sub(/^iPhone[[:space:]]+/, "", numericPart)
-                  split(numericPart, tokens, /[^0-9]/)
-                  model = tokens[1] + 0
-                }
-
-                if (runtimeMajor > bestRuntimeMajor || (runtimeMajor == bestRuntimeMajor && runtimeMinor > bestRuntimeMinor) || (runtimeMajor == bestRuntimeMajor && runtimeMinor == bestRuntimeMinor && model > bestModel)) {
-                  bestRuntimeMajor = runtimeMajor
-                  bestRuntimeMinor = runtimeMinor
-                  bestModel = model
-                  bestName = name
-                }
-              }
-
-              END {
-                print bestName
-              }
-            '
-          )
-
-          if [[ -z "${DEVICE_NAME}" ]]; then
-            DEVICE_NAME=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {gsub(/^ +| +$/, "", $1); print $1; exit}')
-          fi
-
-          if [[ -z "${DEVICE_NAME}" ]]; then
-            echo "No available iPhone simulator found."
+          xctestrun_path=$(find "${RUNNER_TEMP}/DerivedData/Build/Products" -name "*.xctestrun" -print -quit)
+          if [[ -z "${xctestrun_path}" ]]; then
+            echo "No .xctestrun file found in downloaded build products."
             exit 1
           fi
 
-          echo "Using simulator: ${DEVICE_NAME}"
-          echo "name=${DEVICE_NAME}" >> "${GITHUB_OUTPUT}"
-
-      - name: Build and run tests
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          xcodebuild_args=(
-            -project StreakVoyage.xcodeproj
-            -scheme StreakVoyage
-            -destination "platform=iOS Simulator,name=${{ steps.simulator.outputs.name }}"
-            -skip-testing:StreakVoyageUITests
-            -parallel-testing-enabled YES
-            -maximum-parallel-testing-workers 4
-          )
-
+          test_filters=()
           if [[ "${{ matrix.shard.test_group }}" == "core_tests" ]]; then
-            xcodebuild_args+=(-skip-testing:StreakVoyageTests/HomeDashboardViewModelTests)
-          else
-            # Keep these exclusions in sync when new non-home suites are added.
-            xcodebuild_args+=(
-              -skip-testing:StreakVoyageTests/WorkoutSessionViewModelTests
-              -skip-testing:StreakVoyageTests/HomeProgressStoreTests
-              -skip-testing:StreakVoyageTests/StreakVoyageTests
+            test_filters+=(
+              -only-testing:StreakVoyageTests/WorkoutSessionViewModelTests
+              -only-testing:StreakVoyageTests/HomeProgressStoreTests
+              -only-testing:StreakVoyageTests/StreakVoyageTests
             )
+          else
+            test_filters+=(-only-testing:StreakVoyageTests/HomeDashboardViewModelTests)
           fi
 
-          xcodebuild test "${xcodebuild_args[@]}" CODE_SIGNING_ALLOWED=NO
+          xcodebuild test-without-building \
+            -xctestrun "${xctestrun_path}" \
+            -destination "${IOS_SIMULATOR_DESTINATION}" \
+            -parallel-testing-enabled YES \
+            -maximum-parallel-testing-workers 4 \
+            "${test_filters[@]}" \
+            CODE_SIGNING_ALLOWED=NO

@@ -8,21 +8,32 @@ final class HomeDashboardViewModel: ObservableObject {
     @Published private(set) var currentStreak = 0
     @Published private(set) var longestStreak = 0
     @Published private(set) var completedWorkoutIDs: Set<String> = []
+    @Published private(set) var reminderEnabled = false
+    @Published private(set) var reminderTime = Date()
+    @Published private(set) var reminderPermissionStatus: ReminderPermissionStatus = .notDetermined
 
     private let store: DashboardProgressStoring
+    private let reminderStore: ReminderSettingsStoring
+    private let reminderScheduler: DailyReminderScheduling
     private let calendar: Calendar
     private let nowProvider: () -> Date
     private var snapshot = DashboardProgressSnapshot()
+    private var reminderSnapshot = ReminderSettingsSnapshot()
 
     init(
         store: DashboardProgressStoring? = nil,
+        reminderStore: ReminderSettingsStoring? = nil,
+        reminderScheduler: DailyReminderScheduling? = nil,
         calendar: Calendar = .current,
         nowProvider: @escaping () -> Date = Date.init
     ) {
         self.store = store ?? UserDefaultsDashboardProgressStore()
+        self.reminderStore = reminderStore ?? UserDefaultsReminderSettingsStore()
+        self.reminderScheduler = reminderScheduler ?? UserNotificationDailyReminderScheduler()
         self.calendar = calendar
         self.nowProvider = nowProvider
         load()
+        loadReminderSettings()
     }
 
     var currentLevel: Int {
@@ -44,6 +55,23 @@ final class HomeDashboardViewModel: ObservableObject {
     func refreshForCurrentDate() {
         let normalized = normalize(snapshot, relativeTo: nowProvider())
         setSnapshot(normalized, persist: normalized != snapshot)
+    }
+
+    func refreshReminderStatus() async {
+        let status = await reminderScheduler.authorizationStatus()
+        reminderPermissionStatus = status
+
+        guard reminderSnapshot.isEnabled else { return }
+
+        guard status.allowsScheduling else {
+            var disabled = reminderSnapshot
+            disabled.isEnabled = false
+            setReminderSnapshot(disabled, persist: true)
+            await reminderScheduler.cancelDailyReminder()
+            return
+        }
+
+        await scheduleReminderIfPossible()
     }
 
     func handleWorkoutCompletion(_ event: WorkoutCompletionEvent) {
@@ -71,10 +99,70 @@ final class HomeDashboardViewModel: ObservableObject {
         setSnapshot(next, persist: true)
     }
 
+    func setReminderEnabled(_ isEnabled: Bool) async {
+        if !isEnabled {
+            var next = reminderSnapshot
+            next.isEnabled = false
+            setReminderSnapshot(next, persist: true)
+            await reminderScheduler.cancelDailyReminder()
+            return
+        }
+
+        let status = await reminderScheduler.authorizationStatus()
+        reminderPermissionStatus = status
+
+        switch status {
+        case .authorized:
+            var enabled = reminderSnapshot
+            enabled.isEnabled = true
+            setReminderSnapshot(enabled, persist: true)
+            await scheduleReminderIfPossible()
+        case .notDetermined:
+            let granted = await reminderScheduler.requestAuthorization()
+            let refreshedStatus = await reminderScheduler.authorizationStatus()
+            reminderPermissionStatus = refreshedStatus
+
+            guard granted, refreshedStatus.allowsScheduling else {
+                var disabled = reminderSnapshot
+                disabled.isEnabled = false
+                setReminderSnapshot(disabled, persist: true)
+                return
+            }
+
+            var enabled = reminderSnapshot
+            enabled.isEnabled = true
+            setReminderSnapshot(enabled, persist: true)
+            await scheduleReminderIfPossible()
+        case .denied:
+            var disabled = reminderSnapshot
+            disabled.isEnabled = false
+            setReminderSnapshot(disabled, persist: true)
+        }
+    }
+
+    func setReminderTime(_ date: Date) async {
+        let normalizedDate = normalizedReminderDate(from: date)
+        let components = calendar.dateComponents([.hour, .minute], from: normalizedDate)
+
+        var next = reminderSnapshot
+        next.hour = components.hour ?? ReminderSettingsSnapshot.defaultHour
+        next.minute = components.minute ?? ReminderSettingsSnapshot.defaultMinute
+        setReminderSnapshot(next, persist: true)
+
+        guard next.isEnabled else { return }
+        await scheduleReminderIfPossible()
+    }
+
     private func load() {
         let stored = store.load() ?? DashboardProgressSnapshot()
         let normalized = normalize(stored, relativeTo: nowProvider())
         setSnapshot(normalized, persist: normalized != stored)
+    }
+
+    private func loadReminderSettings() {
+        let stored = reminderStore.load() ?? ReminderSettingsSnapshot()
+        let normalized = normalizeReminderSnapshot(stored)
+        setReminderSnapshot(normalized, persist: normalized != stored)
     }
 
     private func setSnapshot(_ snapshot: DashboardProgressSnapshot, persist: Bool) {
@@ -87,6 +175,16 @@ final class HomeDashboardViewModel: ObservableObject {
 
         if persist {
             store.save(snapshot)
+        }
+    }
+
+    private func setReminderSnapshot(_ snapshot: ReminderSettingsSnapshot, persist: Bool) {
+        reminderSnapshot = snapshot
+        reminderEnabled = snapshot.isEnabled
+        reminderTime = reminderDate(forHour: snapshot.hour, minute: snapshot.minute)
+
+        if persist {
+            reminderStore.save(snapshot)
         }
     }
 
@@ -103,6 +201,20 @@ final class HomeDashboardViewModel: ObservableObject {
            !calendar.isDate(lastWorkoutAt, inSameDayAs: now),
            !isYesterday(lastWorkoutAt, relativeTo: now) {
             normalized.currentStreak = 0
+        }
+
+        return normalized
+    }
+
+    private func normalizeReminderSnapshot(_ snapshot: ReminderSettingsSnapshot) -> ReminderSettingsSnapshot {
+        var normalized = snapshot
+
+        if !(0...23).contains(normalized.hour) {
+            normalized.hour = ReminderSettingsSnapshot.defaultHour
+        }
+
+        if !(0...59).contains(normalized.minute) {
+            normalized.minute = ReminderSettingsSnapshot.defaultMinute
         }
 
         return normalized
@@ -133,5 +245,39 @@ final class HomeDashboardViewModel: ObservableObject {
         }
 
         return calendar.isDate(date, inSameDayAs: yesterday)
+    }
+
+    private func reminderDate(forHour hour: Int, minute: Int) -> Date {
+        var components = calendar.dateComponents([.year, .month, .day], from: nowProvider())
+        components.hour = hour
+        components.minute = minute
+
+        return calendar.date(from: components) ?? nowProvider()
+    }
+
+    private func normalizedReminderDate(from date: Date) -> Date {
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        let hour = components.hour ?? ReminderSettingsSnapshot.defaultHour
+        let minute = components.minute ?? ReminderSettingsSnapshot.defaultMinute
+        return reminderDate(forHour: hour, minute: minute)
+    }
+
+    private func scheduleReminderIfPossible() async {
+        guard reminderSnapshot.isEnabled else { return }
+
+        let status = await reminderScheduler.authorizationStatus()
+        reminderPermissionStatus = status
+        guard status.allowsScheduling else { return }
+
+        do {
+            try await reminderScheduler.scheduleDailyReminder(
+                hour: reminderSnapshot.hour,
+                minute: reminderSnapshot.minute
+            )
+        } catch {
+            var disabled = reminderSnapshot
+            disabled.isEnabled = false
+            setReminderSnapshot(disabled, persist: true)
+        }
     }
 }

@@ -132,6 +132,7 @@ struct WorkoutSessionView: View {
         }
         .buttonStyle(.plain)
         .disabled(!viewModel.canCompleteSet)
+        .accessibilityIdentifier("workout.completeSet")
     }
 
     private var setStatusCard: some View {
@@ -173,6 +174,7 @@ struct WorkoutSessionView: View {
                 viewModel.startWorkout()
             }
             .buttonStyle(WorkoutPrimaryButtonStyle(accent: plan.accent))
+            .accessibilityIdentifier("workout.start")
         }
     }
 
@@ -222,6 +224,7 @@ struct WorkoutSessionView: View {
             }
             .buttonStyle(.plain)
             .disabled(!viewModel.canCountRep)
+            .accessibilityIdentifier("workout.countRep")
         }
     }
 
@@ -253,6 +256,7 @@ struct WorkoutSessionView: View {
                 viewModel.skipRest()
             }
             .buttonStyle(WorkoutPrimaryButtonStyle(accent: plan.accent))
+            .accessibilityIdentifier("workout.skipRest")
         }
     }
 
@@ -267,6 +271,7 @@ struct WorkoutSessionView: View {
                     Text("Workout Complete")
                         .font(.system(size: 24, weight: .black, design: .rounded))
                         .foregroundStyle(AppTheme.Colors.textPrimary)
+                        .accessibilityIdentifier("workout.completed.title")
 
                     Text("+\(plan.xpReward) XP earned")
                         .font(.system(size: 18, weight: .bold, design: .rounded))
@@ -278,6 +283,7 @@ struct WorkoutSessionView: View {
                 dismiss()
             }
             .buttonStyle(WorkoutPrimaryButtonStyle(accent: plan.accent))
+            .accessibilityIdentifier("workout.done")
         }
     }
 

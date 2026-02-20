@@ -53,7 +53,21 @@ struct HomeDashboardView: View {
                         )
                     }
 
-                    ReminderCardView(isEnabled: true)
+                    ReminderCardView(
+                        isEnabled: viewModel.reminderEnabled,
+                        reminderTime: viewModel.reminderTime,
+                        permissionStatus: viewModel.reminderPermissionStatus,
+                        onToggle: { isEnabled in
+                            Task {
+                                await viewModel.setReminderEnabled(isEnabled)
+                            }
+                        },
+                        onTimeChange: { reminderTime in
+                            Task {
+                                await viewModel.setReminderTime(reminderTime)
+                            }
+                        }
+                    )
                 }
                 .padding(.horizontal, AppTheme.Spacing.screenPadding)
                 .padding(.top, AppTheme.Spacing.screenPadding)
@@ -69,10 +83,16 @@ struct HomeDashboardView: View {
         }
         .onAppear {
             viewModel.refreshForCurrentDate()
+            Task {
+                await viewModel.refreshReminderStatus()
+            }
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
             viewModel.refreshForCurrentDate()
+            Task {
+                await viewModel.refreshReminderStatus()
+            }
         }
     }
 

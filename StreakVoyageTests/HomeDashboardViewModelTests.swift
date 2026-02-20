@@ -133,6 +133,38 @@ struct HomeDashboardViewModelTests {
     }
 
     @Test
+    func refreshForCurrentDateResetsDailyCompletionWhenDayChanges() {
+        let dayOne = makeDate("2026-02-19T10:00:00Z")
+        var now = dayOne
+        let store = InMemoryProgressStore(
+            snapshot: DashboardProgressSnapshot(
+                totalWorkouts: 3,
+                totalXP: 150,
+                currentStreak: 3,
+                longestStreak: 3,
+                lastWorkoutAt: dayOne,
+                dailyCompletedDate: dayOne,
+                dailyCompletedWorkoutIDs: ["squats", "pushups"]
+            )
+        )
+        let viewModel = HomeDashboardViewModel(
+            store: store,
+            calendar: makeCalendarUTC(),
+            nowProvider: { now }
+        )
+
+        #expect(viewModel.todayCompletedCount == 2)
+
+        now = makeDate("2026-02-20T09:00:00Z")
+        viewModel.refreshForCurrentDate()
+
+        #expect(viewModel.todayCompletedCount == 0)
+        #expect(store.snapshot?.dailyCompletedWorkoutIDs.isEmpty == true)
+        #expect(store.snapshot?.dailyCompletedDate == now)
+        #expect(store.saveCallCount > 0)
+    }
+
+    @Test
     func enablingReminderWhenAuthorizedSchedulesDailyNotification() async {
         let now = makeDate("2026-02-19T10:00:00Z")
         let reminderStore = InMemoryReminderSettingsStore()
@@ -199,6 +231,29 @@ struct HomeDashboardViewModelTests {
     }
 
     @Test
+    func disablingReminderCancelsScheduledNotification() async {
+        let now = makeDate("2026-02-19T10:00:00Z")
+        let reminderStore = InMemoryReminderSettingsStore(
+            snapshot: ReminderSettingsSnapshot(isEnabled: true, hour: 20, minute: 0)
+        )
+        let reminderScheduler = FakeReminderScheduler(fallbackAuthorizationStatus: .authorized)
+        let viewModel = HomeDashboardViewModel(
+            store: InMemoryProgressStore(),
+            reminderStore: reminderStore,
+            reminderScheduler: reminderScheduler,
+            calendar: makeCalendarUTC(),
+            nowProvider: { now }
+        )
+
+        await viewModel.setReminderEnabled(false)
+
+        #expect(!viewModel.reminderEnabled)
+        #expect(reminderStore.snapshot?.isEnabled == false)
+        #expect(reminderScheduler.cancelCallCount == 1)
+        #expect(reminderScheduler.scheduleCalls.isEmpty)
+    }
+
+    @Test
     func changingReminderTimeReschedulesWhenReminderIsEnabled() async {
         let now = makeDate("2026-02-19T10:00:00Z")
         let reminderStore = InMemoryReminderSettingsStore(
@@ -224,6 +279,29 @@ struct HomeDashboardViewModelTests {
     }
 
     @Test
+    func changingReminderTimePersistsButDoesNotScheduleWhenReminderIsDisabled() async {
+        let now = makeDate("2026-02-19T10:00:00Z")
+        let reminderStore = InMemoryReminderSettingsStore(
+            snapshot: ReminderSettingsSnapshot(isEnabled: false, hour: 20, minute: 0)
+        )
+        let reminderScheduler = FakeReminderScheduler(fallbackAuthorizationStatus: .authorized)
+        let viewModel = HomeDashboardViewModel(
+            store: InMemoryProgressStore(),
+            reminderStore: reminderStore,
+            reminderScheduler: reminderScheduler,
+            calendar: makeCalendarUTC(),
+            nowProvider: { now }
+        )
+
+        await viewModel.setReminderTime(makeDate("2026-02-19T06:15:00Z"))
+
+        #expect(!viewModel.reminderEnabled)
+        #expect(reminderStore.snapshot?.hour == 6)
+        #expect(reminderStore.snapshot?.minute == 15)
+        #expect(reminderScheduler.scheduleCalls.isEmpty)
+    }
+
+    @Test
     func refreshReminderStatusDisablesReminderWhenPermissionWasRevoked() async {
         let now = makeDate("2026-02-19T10:00:00Z")
         let reminderStore = InMemoryReminderSettingsStore(
@@ -243,6 +321,53 @@ struct HomeDashboardViewModelTests {
         #expect(!viewModel.reminderEnabled)
         #expect(reminderStore.snapshot?.isEnabled == false)
         #expect(reminderScheduler.cancelCallCount == 1)
+    }
+
+    @Test
+    func reminderSchedulingFailureDisablesReminder() async {
+        let now = makeDate("2026-02-19T10:00:00Z")
+        let reminderStore = InMemoryReminderSettingsStore()
+        let reminderScheduler = FakeReminderScheduler(
+            fallbackAuthorizationStatus: .authorized,
+            scheduleError: FakeReminderSchedulerError.scheduleFailed
+        )
+        let viewModel = HomeDashboardViewModel(
+            store: InMemoryProgressStore(),
+            reminderStore: reminderStore,
+            reminderScheduler: reminderScheduler,
+            calendar: makeCalendarUTC(),
+            nowProvider: { now }
+        )
+
+        await viewModel.setReminderEnabled(true)
+
+        #expect(!viewModel.reminderEnabled)
+        #expect(reminderStore.snapshot?.isEnabled == false)
+        #expect(reminderScheduler.scheduleCalls.count == 1)
+    }
+
+    @Test
+    func invalidStoredReminderTimeIsNormalizedOnLoad() {
+        let now = makeDate("2026-02-19T10:00:00Z")
+        let calendar = makeCalendarUTC()
+        let reminderStore = InMemoryReminderSettingsStore(
+            snapshot: ReminderSettingsSnapshot(isEnabled: false, hour: 99, minute: -10)
+        )
+        let viewModel = HomeDashboardViewModel(
+            store: InMemoryProgressStore(),
+            reminderStore: reminderStore,
+            reminderScheduler: FakeReminderScheduler(fallbackAuthorizationStatus: .authorized),
+            calendar: calendar,
+            nowProvider: { now }
+        )
+
+        let reminderComponents = calendar.dateComponents([.hour, .minute], from: viewModel.reminderTime)
+
+        #expect(reminderComponents.hour == ReminderSettingsSnapshot.defaultHour)
+        #expect(reminderComponents.minute == ReminderSettingsSnapshot.defaultMinute)
+        #expect(reminderStore.snapshot?.hour == ReminderSettingsSnapshot.defaultHour)
+        #expect(reminderStore.snapshot?.minute == ReminderSettingsSnapshot.defaultMinute)
+        #expect(reminderStore.saveCallCount > 0)
     }
 
     private func makeDate(_ raw: String) -> Date {
@@ -298,6 +423,7 @@ private final class FakeReminderScheduler: DailyReminderScheduling {
     var authorizationStatuses: [ReminderPermissionStatus]
     var fallbackAuthorizationStatus: ReminderPermissionStatus
     var requestAuthorizationResult: Bool
+    var scheduleError: (any Error)?
     var scheduleCalls: [(hour: Int, minute: Int)] = []
     var cancelCallCount = 0
     var requestAuthorizationCallCount = 0
@@ -305,11 +431,13 @@ private final class FakeReminderScheduler: DailyReminderScheduling {
     init(
         authorizationStatuses: [ReminderPermissionStatus] = [],
         fallbackAuthorizationStatus: ReminderPermissionStatus,
-        requestAuthorizationResult: Bool = true
+        requestAuthorizationResult: Bool = true,
+        scheduleError: (any Error)? = nil
     ) {
         self.authorizationStatuses = authorizationStatuses
         self.fallbackAuthorizationStatus = fallbackAuthorizationStatus
         self.requestAuthorizationResult = requestAuthorizationResult
+        self.scheduleError = scheduleError
     }
 
     func authorizationStatus() async -> ReminderPermissionStatus {
@@ -327,9 +455,16 @@ private final class FakeReminderScheduler: DailyReminderScheduling {
 
     func scheduleDailyReminder(hour: Int, minute: Int) async throws {
         scheduleCalls.append((hour, minute))
+        if let scheduleError {
+            throw scheduleError
+        }
     }
 
     func cancelDailyReminder() async {
         cancelCallCount += 1
     }
+}
+
+private enum FakeReminderSchedulerError: Error {
+    case scheduleFailed
 }

@@ -99,7 +99,6 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         uses: codecov/codecov-action@v5
         with:
-          directory: ${{ runner.temp }}
           plugins: xcode
           swift_project: StreakVoyage
           flags: ios-unit,${{ matrix.shard.test_group }}

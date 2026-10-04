@@ -11,7 +11,6 @@ on:
 
 permissions:
   contents: read
-  checks: write
 
 concurrency:
   group: ios-ci-${{ github.ref }}
@@ -87,14 +86,12 @@ jobs:
             echo "No unit test result bundle found at ${UNIT_TEST_RESULT_BUNDLE_PATH}"
           fi
 
-      - name: Publish unit test summary
-        if: always() && steps.detect-unit-result.outputs.found == 'true'
-        uses: kishikawakatsumi/xcresulttool@v1
+      - name: Upload unit test result bundle on failure
+        if: failure() && steps.detect-unit-result.outputs.found == 'true'
+        uses: actions/upload-artifact@v7
         with:
+          name: unit-test-results-${{ matrix.shard.test_group }}
           path: ${{ steps.detect-unit-result.outputs.path }}
-          title: Unit Tests (${{ matrix.shard.name }})
-          show-passed-tests: false
-          upload-bundles: failure
 
       - name: Upload unit coverage to Codecov
         if: always() && steps.detect-unit-result.outputs.found == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && (env.CODECOV_TOKEN != '' || github.event.repository.private == false)
@@ -156,11 +153,9 @@ jobs:
             echo "No UI test result bundle found at ${UI_TEST_RESULT_BUNDLE_PATH}"
           fi
 
-      - name: Publish UI test summary
-        if: always() && steps.detect-ui-result.outputs.found == 'true'
-        uses: kishikawakatsumi/xcresulttool@v1
+      - name: Upload UI test result bundle on failure
+        if: failure() && steps.detect-ui-result.outputs.found == 'true'
+        uses: actions/upload-artifact@v7
         with:
+          name: ui-test-results-main
           path: ${{ steps.detect-ui-result.outputs.path }}
-          title: UI Tests (main only)
-          show-passed-tests: false
-          upload-bundles: failure

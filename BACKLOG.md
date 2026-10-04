@@ -7,7 +7,6 @@ Work in progress is in the orchestrator's state.md. Decisions are in
 ## Next
 
 - **Stop the dashboard tests touching the real UserDefaults.** Why: `HomeDashboardViewModelTests.swift` builds the view model without an injected reminder store or scheduler, so it uses `.standard` and `UNUserNotificationCenter` (`HomeDashboardViewModel.swift:31-32`). Added 2026-10-03.
-- **Fix the docs that describe the old CI and test setup.** Why: `docs/PROGRESS.md:46` says CI builds once with build-for-testing, but `ios-ci.yml:64` runs `xcodebuild test` in each shard; the unit tests use Swift Testing, not XCTest. Added 2026-10-03.
 
 ## Later
 

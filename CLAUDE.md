@@ -35,9 +35,12 @@ docs/                    # decisions.md
 - Protocols named with an `-ing` or `-Storing` suffix: `DashboardProgressStoring`, `DailyReminderScheduling`
 
 ## Testing
-- All ViewModels and Stores take their stores and schedulers as injected protocols; tests pass in-memory or isolated ones
+- All ViewModels and Stores take their stores and schedulers as injected protocols; tests pass in-memory or
+  isolated ones
 - UI tests find elements by accessibility identifier, so every interactive element gets one
 
 ## CI
-- **ios-ci.yml**: unit tests run in two parallel shards, each a plain `xcodebuild test` filtered with `-only-testing`; a new unit test suite must be added to one shard's list. UI tests run only on pushes to `main`. Coverage goes to Codecov.
+- **ios-ci.yml**: unit tests run in two parallel shards, each a plain `xcodebuild test` filtered with
+  `-only-testing`; a new unit test suite must be added to one shard's list. UI tests run only on pushes to `main`.
+  Coverage goes to Codecov.
 - **codeql.yml**: Swift and Actions analysis; path-filtered on PRs, plus a weekly scheduled scan.

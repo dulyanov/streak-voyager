@@ -97,7 +97,7 @@ jobs:
         if: always() && github.actor != 'dependabot[bot]' && steps.detect-unit-result.outputs.found == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && (env.CODECOV_TOKEN != '' || github.event.repository.private == false)
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           plugins: xcode
           swift_project: StreakVoyage

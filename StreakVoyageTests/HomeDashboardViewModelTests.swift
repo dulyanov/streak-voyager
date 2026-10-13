@@ -10,6 +10,8 @@ struct HomeDashboardViewModelTests {
         let now = makeDate("2026-02-19T10:00:00Z")
         let viewModel = HomeDashboardViewModel(
             store: store,
+            reminderStore: InMemoryReminderSettingsStore(),
+            reminderScheduler: FakeReminderScheduler(fallbackAuthorizationStatus: .notDetermined),
             calendar: makeCalendarUTC(),
             nowProvider: { now }
         )
@@ -32,6 +34,8 @@ struct HomeDashboardViewModelTests {
         let now = makeDate("2026-02-19T10:00:00Z")
         let viewModel = HomeDashboardViewModel(
             store: store,
+            reminderStore: InMemoryReminderSettingsStore(),
+            reminderScheduler: FakeReminderScheduler(fallbackAuthorizationStatus: .notDetermined),
             calendar: makeCalendarUTC(),
             nowProvider: { now }
         )
@@ -55,6 +59,8 @@ struct HomeDashboardViewModelTests {
         let now = makeDate("2026-02-19T10:00:00Z")
         let viewModel = HomeDashboardViewModel(
             store: store,
+            reminderStore: InMemoryReminderSettingsStore(),
+            reminderScheduler: FakeReminderScheduler(fallbackAuthorizationStatus: .notDetermined),
             calendar: makeCalendarUTC(),
             nowProvider: { now }
         )
@@ -87,6 +93,8 @@ struct HomeDashboardViewModelTests {
         let store = InMemoryProgressStore(snapshot: seededSnapshot)
         let viewModel = HomeDashboardViewModel(
             store: store,
+            reminderStore: InMemoryReminderSettingsStore(),
+            reminderScheduler: FakeReminderScheduler(fallbackAuthorizationStatus: .notDetermined),
             calendar: makeCalendarUTC(),
             nowProvider: { dayTwo }
         )
@@ -121,6 +129,8 @@ struct HomeDashboardViewModelTests {
         let store = InMemoryProgressStore(snapshot: seededSnapshot)
         let viewModel = HomeDashboardViewModel(
             store: store,
+            reminderStore: InMemoryReminderSettingsStore(),
+            reminderScheduler: FakeReminderScheduler(fallbackAuthorizationStatus: .notDetermined),
             calendar: makeCalendarUTC(),
             nowProvider: { dayFour }
         )
@@ -149,6 +159,8 @@ struct HomeDashboardViewModelTests {
         )
         let viewModel = HomeDashboardViewModel(
             store: store,
+            reminderStore: InMemoryReminderSettingsStore(),
+            reminderScheduler: FakeReminderScheduler(fallbackAuthorizationStatus: .notDetermined),
             calendar: makeCalendarUTC(),
             nowProvider: { now }
         )

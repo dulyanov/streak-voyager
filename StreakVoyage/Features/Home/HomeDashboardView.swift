@@ -4,7 +4,11 @@ struct HomeDashboardView: View {
     private let workouts = WorkoutPlan.mvpPlans
 
     @Environment(\.scenePhase) private var scenePhase
-    @StateObject private var viewModel = HomeDashboardViewModel()
+    @StateObject private var viewModel = HomeDashboardViewModel(
+        store: UserDefaultsDashboardProgressStore(),
+        reminderStore: UserDefaultsReminderSettingsStore(),
+        reminderScheduler: UserNotificationDailyReminderScheduler()
+    )
     @State private var activeWorkout: WorkoutPlan?
 
     private var stats: [DashboardStat] {

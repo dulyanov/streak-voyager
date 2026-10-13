@@ -21,15 +21,15 @@ final class HomeDashboardViewModel: ObservableObject {
     private var reminderSnapshot = ReminderSettingsSnapshot()
 
     init(
-        store: DashboardProgressStoring? = nil,
-        reminderStore: ReminderSettingsStoring? = nil,
-        reminderScheduler: DailyReminderScheduling? = nil,
+        store: DashboardProgressStoring,
+        reminderStore: ReminderSettingsStoring,
+        reminderScheduler: DailyReminderScheduling,
         calendar: Calendar = .current,
         nowProvider: @escaping () -> Date = Date.init
     ) {
-        self.store = store ?? UserDefaultsDashboardProgressStore()
-        self.reminderStore = reminderStore ?? UserDefaultsReminderSettingsStore()
-        self.reminderScheduler = reminderScheduler ?? UserNotificationDailyReminderScheduler()
+        self.store = store
+        self.reminderStore = reminderStore
+        self.reminderScheduler = reminderScheduler
         self.calendar = calendar
         self.nowProvider = nowProvider
         load()

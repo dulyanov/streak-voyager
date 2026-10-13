@@ -42,5 +42,6 @@ docs/                    # decisions.md
 ## CI
 - **ios-ci.yml**: unit tests run in two parallel shards, each a plain `xcodebuild test` filtered with
   `-only-testing`; a new unit test suite must be added to one shard's list. UI tests run only on pushes to `main`.
-  Coverage goes to Codecov.
+  The `coverage` job then merges both shards' result bundles and fails below the `COVERAGE_THRESHOLD` line-coverage
+  floor for the app target (`scripts/check-coverage.sh`); raise the floor as coverage grows, never lower it.
 - **codeql.yml**: Swift and Actions analysis; path-filtered on PRs, plus a weekly scheduled scan.

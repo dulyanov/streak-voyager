@@ -93,19 +93,45 @@ jobs:
           name: unit-test-results-${{ matrix.shard.test_group }}
           path: ${{ steps.detect-unit-result.outputs.path }}
 
-      - name: Upload unit coverage to Codecov
-        if: always() && github.actor != 'dependabot[bot]' && steps.detect-unit-result.outputs.found == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && (env.CODECOV_TOKEN != '' || github.event.repository.private == false)
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        uses: codecov/codecov-action@v5
+      - name: Upload coverage result bundle
+        if: success()
+        uses: actions/upload-artifact@v7
         with:
-          plugins: xcode
-          swift_project: StreakVoyage
-          flags: ios-unit,${{ matrix.shard.test_group }}
-          name: ios-unit-${{ matrix.shard.test_group }}
-          token: ${{ env.CODECOV_TOKEN }}
-          fail_ci_if_error: false
-          verbose: true
+          name: unit-coverage-${{ matrix.shard.test_group }}
+          path: ${{ steps.detect-unit-result.outputs.path }}
+          retention-days: 1
+
+  coverage:
+    name: Unit Test Coverage
+    needs: test-shards
+    runs-on: macos-latest
+    timeout-minutes: 10
+    env:
+      # Line coverage of the app target, both shards merged. Raise it as coverage grows,
+      # towards 80%; never lower it to make a change pass (~/Workspace/docs/conventions/ci.md).
+      COVERAGE_THRESHOLD: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download coverage result bundles
+        uses: actions/download-artifact@v8
+        with:
+          pattern: unit-coverage-*
+          path: ${{ runner.temp }}/coverage
+
+      - name: Check coverage threshold
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Each artifact holds the contents of one .xcresult bundle, so give the folders the extension back.
+          for dir in "${RUNNER_TEMP}"/coverage/*/; do
+            mv "${dir%/}" "${dir%/}.xcresult"
+          done
+
+          scripts/check-coverage.sh "${COVERAGE_THRESHOLD}" "${RUNNER_TEMP}"/coverage/*.xcresult
 
   ui-tests-main:
     name: UI Tests (main only)
